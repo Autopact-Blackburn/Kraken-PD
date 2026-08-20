@@ -82,6 +82,24 @@ button,input,select,textarea{font:inherit}.app{max-width:1920px;margin:auto;padd
 .week-legend .customer{background:#fff}.week-legend .workflow{background:#ffe78f}.week-legend .risk{background:#ffb4aa}.week-legend .complete{background:#9be0c4}
 .bar.plan{background:linear-gradient(180deg,#f5c84d,#d49a10)}
 
+
+.week-nav{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.week-nav button,.week-nav input{
+  border:1px solid var(--line);background:#fff;border-radius:10px;
+  padding:7px 10px;font:inherit;font-size:10px;font-weight:900;color:var(--ink)
+}
+.week-nav button{cursor:pointer}
+.week-nav button:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(25,28,45,.08)}
+.week-nav input{font-weight:800;min-width:138px}
+.month-jumpbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 0 12px}
+.month-jumpbar .navgroup{display:flex;align-items:center;gap:8px}
+.month-jumpbar button,.month-jumpbar input{
+  border:1px solid var(--line);background:#fff;border-radius:10px;padding:8px 10px;
+  font:inherit;font-size:10px;font-weight:900;color:var(--ink)
+}
+.month-jumpbar button{cursor:pointer}
+.month-jumpbar button:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(25,28,45,.08)}
+
 </style>
 </head>
 <body>
@@ -110,11 +128,29 @@ button,input,select,textarea{font:inherit}.app{max-width:1920px;margin:auto;padd
  <div class="stats" id="stats"></div>
 
  <section id="weekView" class="view active panel">
-  <div class="week-tools"><div class="week-title">MON 17 AUG — SAT 22 AUG</div><div class="legend"><span class="week-legend"><span><i class="swatch customer"></i>Customer commitment</span><span><i class="swatch workflow"></i>Workshop plan</span><span><i class="swatch risk"></i>At risk</span><span><i class="swatch complete"></i>Complete</span></span></div></div>
+  <div class="week-tools">
+  <div class="week-nav">
+    <button type="button" onclick="shiftWeek(-1)">← Last Week</button>
+    <div class="week-title">MON 17 AUG — SAT 22 AUG</div>
+    <button type="button" onclick="shiftWeek(1)">Next Week →</button>
+    <input id="weekPicker" type="date" title="Jump to a week" onchange="jumpToWeek(this.value)">
+    <button type="button" onclick="goCurrentWeek()">This Week</button>
+  </div>
+  <div class="legend"><span class="week-legend"><span><i class="swatch customer"></i>Customer commitment</span><span><i class="swatch workflow"></i>Workshop plan</span><span><i class="swatch risk"></i>At risk</span><span><i class="swatch complete"></i>Complete</span></span></div>
+</div>
   <div class="board-wrap"><div class="board"><div class="board-head" id="weekHead"></div><div class="board-body" id="weekBody"></div></div></div>
  </section>
 
- <section id="monthView" class="view panel"><div class="month-layout">
+ <section id="monthView" class="view panel">
+ <div class="month-jumpbar">
+   <div class="navgroup">
+     <button type="button" onclick="shiftMonth(-1)">← Last Month</button>
+     <input id="monthPicker" type="month" onchange="jumpToMonth(this.value)">
+     <button type="button" onclick="shiftMonth(1)">Next Month →</button>
+     <button type="button" onclick="goCurrentMonth()">This Month</button>
+   </div>
+ </div>
+ <div class="month-layout">
   <div class="month-top">
    <div class="chart-card"><div class="chart-head"><div><h3>August Delivery Load Profile</h3><p>Customer demand versus Carlo’s planned workshop completions and completed work.</p></div><div class="chart-legend"><span><i class="dot purple"></i>Customer deliveries</span><span>🟡 Workshop plan</span><span><i class="dot green"></i>Completed</span></div></div><div class="monthly-chart" id="monthlyChart"></div></div>
    <div class="chart-card"><div class="chart-head"><div><h3>Pointy End Watch</h3><p>Forward visibility for Carlo before dates begin moving earlier.</p></div></div><div class="load-summary" id="loadSummary"></div></div>
@@ -238,6 +274,40 @@ function esc(s){return String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&l
 
 function weekFromDate(input){const d=new Date(input);const dow=d.getDay();const delta=dow===0?-6:1-dow;const mon=new Date(d);mon.setDate(d.getDate()+delta);mon.setHours(12,0,0,0);days=[];for(let i=0;i<6;i++){const x=new Date(mon);x.setDate(mon.getDate()+i);days.push([dateKeyLocal(x),x.toLocaleDateString('en-AU',{weekday:'short'}).toUpperCase(),x.toLocaleDateString('en-AU',{day:'numeric',month:'short'})])}}
 function setWeekFromDate(key){weekFromDate(new Date(key+'T12:00:00'));setView('week');render()}
+function shiftWeek(delta){
+  const anchor=new Date(days[0][0]+'T12:00:00');
+  anchor.setDate(anchor.getDate()+(delta*7));
+  weekFromDate(anchor);
+  render();
+}
+function jumpToWeek(value){
+  if(!value)return;
+  weekFromDate(new Date(value+'T12:00:00'));
+  render();
+}
+function goCurrentWeek(){
+  weekFromDate(new Date());
+  render();
+}
+function shiftMonth(delta){
+  currentMonth=new Date(currentMonth.getFullYear(),currentMonth.getMonth()+delta,1);
+  setView('month');
+  render();
+}
+function jumpToMonth(value){
+  if(!value)return;
+  const [y,m]=value.split('-').map(Number);
+  currentMonth=new Date(y,m-1,1);
+  setView('month');
+  render();
+}
+function goCurrentMonth(){
+  const n=new Date();
+  currentMonth=new Date(n.getFullYear(),n.getMonth(),1);
+  setView('month');
+  render();
+}
+
 function eligible(c){return Boolean(c.deal&&c.ro)}
 function effective(c){return c.booked||c.estimated||''}
 function workshopSlot(c){return c.proposedCompletion||c.pdi||''}
@@ -430,6 +500,8 @@ document.querySelectorAll('[data-view]').forEach(x=>x.classList.toggle('active',
 function renderWeek(v){
  const start=new Date(days[0][0]+'T00:00:00'),end=new Date(days[5][0]+'T23:59:59');
  document.querySelector('.week-title').textContent=`${new Date(days[0][0]+'T12:00:00').toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'}).toUpperCase()} — ${new Date(days[5][0]+'T12:00:00').toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'}).toUpperCase()}`;
+ const weekPicker=document.getElementById('weekPicker');if(weekPicker)weekPicker.value=days[0][0];
+
  const slotHours=new Set(slots.map(s=>+s[0].slice(0,2)));
  const unscheduled=v.filter(c=>!effective(c)&&!workshopSlot(c)&&c.status!=='Complete');
  const visuals=[];
@@ -509,7 +581,7 @@ function monthCounts(day){const {y,m}=monthMeta();return {
  plan:cards.filter(c=>{if(!workshopSlot(c)||c.status==='Complete')return false;const d=new Date(workshopSlot(c));return d.getFullYear()===y&&d.getMonth()===m&&d.getDate()===day}).length,
  done:cards.filter(c=>{if(!c.completedAt)return false;const d=new Date(c.completedAt);return d.getFullYear()===y&&d.getMonth()===m&&d.getDate()===day}).length
 }}
-function renderMonth(v){const {y,m,daysIn,name}=monthMeta();document.querySelector('.chart-card h3').textContent=`${name} Delivery & Workshop Load`;const max=Math.max(1,...Array.from({length:daysIn},(_,i)=>{const x=monthCounts(i+1);return Math.max(x.due,x.plan,x.done)}));document.getElementById('monthlyChart').innerHTML=Array.from({length:daysIn},(_,i)=>{const d=i+1,x=monthCounts(d);return `<div class="barcol" title="${d} · ${x.due} customer · ${x.plan} workshop · ${x.done} complete"><div class="bar done" style="height:${x.done/max*78}%"></div><div class="bar plan" style="height:${x.plan/max*78}%"></div><div class="bar due" style="height:${x.due/max*78}%"></div><span class="daynum">${d}</span></div>`}).join('');const lastDay=daysIn,eomStart=Math.max(1,lastDay-6),next7=cards.filter(c=>c.status!=='Complete'&&effective(c)&&new Date(effective(c))>=NOW&&new Date(effective(c))-NOW<=7*864e5).length,eom=cards.filter(c=>{if(c.status==='Complete'||!effective(c))return false;const d=new Date(effective(c));return d.getFullYear()===y&&d.getMonth()===m&&d.getDate()>=eomStart}).length,unassigned=cards.filter(c=>c.status!=='Complete'&&c.tech==='Unassigned').length,unscheduled=cards.filter(c=>c.status!=='Complete'&&!workshopSlot(c)).length;document.getElementById('loadSummary').innerHTML=[['Next 7 Days',next7,'customer deliveries approaching'],[`${eomStart}–${lastDay} ${currentMonth.toLocaleDateString('en-AU',{month:'short'})}`,eom,'EOM customer load'],['Unscheduled',unscheduled,'ROs need a Carlo workshop slot'],['Tech Unassigned',unassigned,'need ownership']].map(x=>`<div class="loadbox"><strong>${x[1]}</strong><b style="font-size:10px">${x[0]}</b><span>${x[2]}</span></div>`).join('');const headers=['MON','TUE','WED','THU','FRI','SAT','SUN'].map(x=>`<div class="calday empty"><h4>${x}</h4></div>`).join('');const first=new Date(y,m,1),leading=(first.getDay()+6)%7;const blanks='<div class="calday empty"></div>'.repeat(leading);const cells=Array.from({length:daysIn},(_,i)=>{const day=i+1,x=monthCounts(day),key=`${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`,remaining=cards.filter(c=>c.status!=='Complete'&&effective(c)&&dateKeyLocal(new Date(effective(c)))===key).length;return `<div class="calday" role="button" tabindex="0" title="Open week containing ${day}" onclick="setWeekFromDate('${key}')"><h4>${day} ${currentMonth.toLocaleDateString('en-AU',{month:'short'}).toUpperCase()}</h4><div class="metricline"><b>${x.due}</b> customer</div><div class="metricline"><b>${x.plan}</b> workshop</div><div class="metricline"><b>${x.done}</b> completed</div><div class="metricline"><b>${remaining}</b> remaining</div></div>`}).join('');document.getElementById('calendarGrid').innerHTML=headers+blanks+cells}
+function renderMonth(v){const {y,m,daysIn,name}=monthMeta();const monthPicker=document.getElementById('monthPicker');if(monthPicker)monthPicker.value=`${y}-${String(m+1).padStart(2,'0')}`;document.querySelector('.chart-card h3').textContent=`${name} Delivery & Workshop Load`;const max=Math.max(1,...Array.from({length:daysIn},(_,i)=>{const x=monthCounts(i+1);return Math.max(x.due,x.plan,x.done)}));document.getElementById('monthlyChart').innerHTML=Array.from({length:daysIn},(_,i)=>{const d=i+1,x=monthCounts(d);return `<div class="barcol" title="${d} · ${x.due} customer · ${x.plan} workshop · ${x.done} complete"><div class="bar done" style="height:${x.done/max*78}%"></div><div class="bar plan" style="height:${x.plan/max*78}%"></div><div class="bar due" style="height:${x.due/max*78}%"></div><span class="daynum">${d}</span></div>`}).join('');const lastDay=daysIn,eomStart=Math.max(1,lastDay-6),next7=cards.filter(c=>c.status!=='Complete'&&effective(c)&&new Date(effective(c))>=NOW&&new Date(effective(c))-NOW<=7*864e5).length,eom=cards.filter(c=>{if(c.status==='Complete'||!effective(c))return false;const d=new Date(effective(c));return d.getFullYear()===y&&d.getMonth()===m&&d.getDate()>=eomStart}).length,unassigned=cards.filter(c=>c.status!=='Complete'&&c.tech==='Unassigned').length,unscheduled=cards.filter(c=>c.status!=='Complete'&&!workshopSlot(c)).length;document.getElementById('loadSummary').innerHTML=[['Next 7 Days',next7,'customer deliveries approaching'],[`${eomStart}–${lastDay} ${currentMonth.toLocaleDateString('en-AU',{month:'short'})}`,eom,'EOM customer load'],['Unscheduled',unscheduled,'ROs need a Carlo workshop slot'],['Tech Unassigned',unassigned,'need ownership']].map(x=>`<div class="loadbox"><strong>${x[1]}</strong><b style="font-size:10px">${x[0]}</b><span>${x[2]}</span></div>`).join('');const headers=['MON','TUE','WED','THU','FRI','SAT','SUN'].map(x=>`<div class="calday empty"><h4>${x}</h4></div>`).join('');const first=new Date(y,m,1),leading=(first.getDay()+6)%7;const blanks='<div class="calday empty"></div>'.repeat(leading);const cells=Array.from({length:daysIn},(_,i)=>{const day=i+1,x=monthCounts(day),key=`${y}-${String(m+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`,remaining=cards.filter(c=>c.status!=='Complete'&&effective(c)&&dateKeyLocal(new Date(effective(c)))===key).length;return `<div class="calday" role="button" tabindex="0" title="Open week containing ${day}" onclick="setWeekFromDate('${key}')"><h4>${day} ${currentMonth.toLocaleDateString('en-AU',{month:'short'}).toUpperCase()}</h4><div class="metricline"><b>${x.due}</b> customer</div><div class="metricline"><b>${x.plan}</b> workshop</div><div class="metricline"><b>${x.done}</b> completed</div><div class="metricline"><b>${remaining}</b> remaining</div></div>`}).join('');document.getElementById('calendarGrid').innerHTML=headers+blanks+cells}
 function durationLabel(h){if(!isFinite(h))return '—';if(h<24)return `${h.toFixed(1)} hrs`;return `${(h/24).toFixed(1)} days`}
 function renderReports(v){const done=v.filter(c=>c.completedAt&&c.received),avg=done.length?done.reduce((s,c)=>s+hours(c.received,c.completedAt),0)/done.length:0,fast=done.length?Math.min(...done.map(c=>hours(c.received,c.completedAt))):Infinity,onTarget=done.filter(c=>hours(c.received,c.completedAt)<=turnaroundBufferDays(c)*24).length;document.getElementById('reportKpis').innerHTML=[['Completed',done.length,'PDI jobs completed'],['Avg Turnaround',durationLabel(avg),'RO received → complete'],['Fastest',durationLabel(fast),'Best completed RO'],['Within Buffer',done.length?Math.round(onTarget/done.length*100)+'%':'—','3 days · 2 days EOM']].map(x=>`<div class="report-kpi"><div class="k">${x[0]}</div><div class="v">${x[1]}</div><div class="s">${x[2]}</div></div>`).join('');const data=technicians.filter(t=>t!=='Unassigned').map(t=>{const td=done.filter(c=>c.tech===t),live=v.filter(c=>c.tech===t&&c.status!=='Complete'),av=td.length?td.reduce((s,c)=>s+hours(c.received,c.completedAt),0)/td.length:Infinity,fa=td.length?Math.min(...td.map(c=>hours(c.received,c.completedAt))):Infinity;return {t,n:td.length,live:live.length,av,fa}}).sort((a,b)=>(a.av-b.av)||b.n-a.n);const maxLive=Math.max(1,...data.map(x=>x.live));document.getElementById('techBody').innerHTML=data.length?data.map((x,i)=>`<tr><td><span class="rank">${i+1}</span></td><td><b>${esc(x.t)}</b></td><td>${x.n}</td><td>${durationLabel(x.av)}</td><td>${durationLabel(x.fa)}</td><td><div class="perfbar"><i style="width:${x.live/maxLive*100}%"></i></div><span class="small">${x.live} live</span></td></tr>`).join(''):'<tr><td colspan="6" class="empty-state"><b>No technician data yet</b>Technicians can be added later in Settings.</td></tr>'}
 
