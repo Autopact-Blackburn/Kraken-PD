@@ -258,15 +258,26 @@ function toIso(local){
 function fmt(dt){if(!dt)return 'Not set';const d=new Date(dt);if(Number.isNaN(d))return 'Not set';return d.toLocaleString('en-AU',{weekday:'short',day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})}
 function stamp(dt=new Date()){return dt.toLocaleString('en-AU',{day:'numeric',month:'short',hour:'numeric',minute:'2-digit'})}
 function hours(a,b){return a&&b?(new Date(b)-new Date(a))/36e5:Infinity}
-function canControl(){return ['admin','manager','workshop_control'].includes(currentProfile?.role)}
-function canDirectSchedule(){return ['admin','workshop_control'].includes(currentProfile?.role)}
-function canRequestSchedule(){return currentProfile?.role==='manager'}
-function canSettings(){return ['admin','manager','workshop_control'].includes(currentProfile?.role)}
-function canReviewRequests(){return ['admin','workshop_control'].includes(currentProfile?.role)}
-function isAdmin(){return currentProfile?.role==='admin'}
+function roleKey(){return String(currentProfile?.role||'').trim().toLowerCase()}
+function canControl(){return ['admin','manager','workshop_control'].includes(roleKey())}
+function canDirectSchedule(){return ['admin','workshop_control'].includes(roleKey())}
+function canRequestSchedule(){return roleKey()==='manager'}
+function canSettings(){return ['admin','manager','workshop_control'].includes(roleKey())}
+function canReviewRequests(){return ['admin','workshop_control'].includes(roleKey())}
+function isAdmin(){return roleKey()==='admin'}
+function canManageUser(u){return isAdmin()||(['manager','workshop_control'].includes(roleKey())&&u?.role==='sales')}
+function canCreateRole(role){return isAdmin()||(['manager','workshop_control'].includes(roleKey())&&role==='sales')}
 function pendingForJob(id){return scheduleRequests.filter(r=>r.job_id===id&&r.status==='pending')}
 function latestPendingForJob(id){return pendingForJob(id).slice().sort((a,b)=>new Date(b.created_at)-new Date(a.created_at))[0]||null}
 function titleRole(r){return ({admin:'Admin',manager:'Manager',workshop_control:'Workshop Control',sales:'Sales'})[r]||r||''}
+window.krakenPermissionDebug=()=>({
+ role:roleKey(),
+ canControl:canControl(),
+ canDirectSchedule:canDirectSchedule(),
+ canRequestSchedule:canRequestSchedule(),
+ canSettings:canSettings(),
+ canReviewRequests:canReviewRequests()
+});
 function showLoading(v){document.getElementById('loadingScreen').classList.toggle('show',!!v)}
 function toast(msg,error=false){const e=document.getElementById('toast');e.textContent=msg;e.className='toast show'+(error?' error':'');clearTimeout(e._t);e._t=setTimeout(()=>e.className='toast',2600)}
 function setAuthError(msg=''){const e=document.getElementById('authError');e.textContent=msg;e.classList.toggle('show',!!msg)}
@@ -436,7 +447,7 @@ function renderSettings(){
  const ub=document.getElementById('settingsUsersBody'),tl=document.getElementById('settingsTechList'),pb=document.getElementById('settingsPending');
  if(!ub||!tl||!pb)return;
  if(!canSettings()){ub.innerHTML='';tl.innerHTML='';pb.innerHTML='';return}
- ub.innerHTML=settingsUsers.length?settingsUsers.map(u=>`<tr><td><b>${esc(u.full_name)}</b></td><td>${esc(u.email)}</td><td><span class="role-chip">${esc(titleRole(u.role))}</span></td><td>${u.active?'<span style="color:#087443;font-weight:800">Active</span>':'<span style="color:#b42318;font-weight:800">Inactive</span>'}</td><td><div class="settings-actions"><button class="mini-btn" onclick="openUserModal('${u.id}')">Edit</button><button class="mini-btn ${u.active?'danger':'ok'}" onclick="toggleUserActive('${u.id}',${!u.active})">${u.active?'Deactivate':'Reactivate'}</button></div></td></tr>`).join(''):'<tr><td colspan="5">No users loaded yet.</td></tr>';
+ ub.innerHTML=settingsUsers.length?settingsUsers.map(u=>{const editable=canManageUser(u);return `<tr><td><b>${esc(u.full_name)}</b></td><td>${esc(u.email)}</td><td><span class="role-chip">${esc(titleRole(u.role))}</span></td><td>${u.active?'<span style="color:#087443;font-weight:800">Active</span>':'<span style="color:#b42318;font-weight:800">Inactive</span>'}</td><td>${editable?`<div class="settings-actions"><button class="mini-btn" onclick="openUserModal('${u.id}')">Edit</button><button class="mini-btn ${u.active?'danger':'ok'}" onclick="toggleUserActive('${u.id}',${!u.active})">${u.active?'Deactivate':'Reactivate'}</button></div>`:'<span class="small">Protected</span>'}</td></tr>`}).join(''):'<tr><td colspan="5">No users loaded yet.</td></tr>';
  tl.innerHTML=techRows.length?techRows.map(t=>`<div class="tech-row"><div><b>${esc(t.name)}</b><div class="small">${t.active?'Active':'Inactive'}</div></div><div class="settings-actions"><button class="mini-btn" onclick="renameTechnician('${t.id}','${esc(t.name).replace(/'/g,"&#39;")}')">Rename</button><button class="mini-btn ${t.active?'danger':'ok'}" onclick="toggleTechnician('${t.id}',${!t.active})">${t.active?'Deactivate':'Reactivate'}</button></div></div>`).join(''):'<div class="small">No technicians added yet.</div>';
  const pending=scheduleRequests.filter(r=>r.status==='pending');
  pb.innerHTML=pending.length?pending.map(r=>{const c=cards.find(x=>x.id===r.job_id);return `<div class="pending-row"><div><b>${c?`RO ${esc(c.ro)} · ${esc(c.customer)}`:'RO'}</b><br><span class="small">${esc(profiles[r.requested_by]||titleRole(r.requested_role))} · ${fmt(r.original_pdi_at)} → <b>${fmt(r.requested_pdi_at)}</b></span></div>${canReviewRequests()?`<div class="settings-actions"><button class="mini-btn ok" onclick="reviewScheduleRequest('${r.id}','approved')">Accept</button><button class="mini-btn danger" onclick="reviewScheduleRequest('${r.id}','declined')">Decline</button></div>`:'<span class="pending-chip">Awaiting Carlo</span>'}</div>`}).join(''):'<div class="small">No pending schedule changes.</div>';
@@ -444,8 +455,9 @@ function renderSettings(){
 function openUserModal(id=''){
  if(!canSettings())return;
  const u=settingsUsers.find(x=>x.id===id);
+ if(u&&!canManageUser(u)){toast('Managers and Workshop Control can only manage Sales users.',true);return}
  document.getElementById('editUserId').value=id||'';
- document.getElementById('userModalTitle').textContent=u?'Edit User':'Add User';
+ document.getElementById('userModalTitle').textContent=u?'Edit User':'Add Sales User';
  document.getElementById('editUserName').value=u?.full_name||'';
  document.getElementById('editUserEmail').value=u?.email||'';
  document.getElementById('editUserRole').value=u?.role||'sales';
@@ -453,14 +465,19 @@ function openUserModal(id=''){
  document.getElementById('newPasswordField').style.display=u?'none':'block';
  document.getElementById('activeUserField').style.display=u?'block':'none';
  document.getElementById('editUserActive').checked=u?.active??true;
+ const roleSelect=document.getElementById('editUserRole');
+ Array.from(roleSelect.options).forEach(o=>{o.disabled=!isAdmin()&&o.value!=='sales'});
+ if(!isAdmin())roleSelect.value='sales';
  document.getElementById('resetPasswordArea').style.display=u&&isAdmin()?'block':'none';
- document.getElementById('editUserRole').querySelector('option[value="admin"]').disabled=!isAdmin();
  document.getElementById('userModal').classList.add('open')
 }
 function closeUserModal(){document.getElementById('userModal').classList.remove('open')}
 async function saveUser(){
  const id=document.getElementById('editUserId').value,name=document.getElementById('editUserName').value.trim(),email=document.getElementById('editUserEmail').value.trim(),role=document.getElementById('editUserRole').value;
  if(!name||!email){toast('Name and email are required',true);return}
+ const existing=id?settingsUsers.find(x=>x.id===id):null;
+ if(existing&&!canManageUser(existing)){toast('Managers and Workshop Control can only manage Sales users.',true);return}
+ if(!canCreateRole(role)){toast('Only Admin can create or assign privileged roles.',true);return}
  try{
   showLoading(true);
   if(id){
@@ -474,6 +491,8 @@ async function saveUser(){
  }catch(e){showLoading(false);toast(e.message,true)}
 }
 async function toggleUserActive(id,active){
+ const u=settingsUsers.find(x=>x.id===id);
+ if(!u||!canManageUser(u)){toast('Managers and Workshop Control can only manage Sales users.',true);return}
  try{showLoading(true);await callUserAdmin({action:'update_user',user_id:id,active});await loadSettingsUsers();showLoading(false);toast(active?'User reactivated':'User deactivated')}catch(e){showLoading(false);toast(e.message,true)}
 }
 async function resetUserPassword(){
@@ -522,7 +541,7 @@ function renderWeek(v){
 function visualCardHtml(c,kind='customer'){
  const state=trafficState(c),conflict=workshopAfterCustomer(c),fc=c.finance==='Approved'?'approved':c.finance==='Not Approved'?'pending':'unset',flagged=exceptionFlag(c),buffer=turnaroundBufferDays(c),ctrl=canControl();
  const pending=latestPendingForJob(c.id),isWorkflow=kind==='workflow',isCombined=kind==='combined';
- const canDrag=canDirectSchedule()||currentProfile?.role==='manager';
+ const canDrag=canDirectSchedule()||roleKey()==='manager';
  let cls=kind==='customer'?'customer-card':isWorkflow?'workflow-card':'combined-card';
  if(conflict)cls+=' at-risk';if(isWorkflow&&c.status==='Complete')cls+=' completed-work';
  const layer=isCombined?'ALIGNED • CUSTOMER + WORKSHOP':isWorkflow?'WORKSHOP PLAN':'CUSTOMER COMMITMENT';
@@ -642,7 +661,7 @@ function renderSettings(){
  const ub=document.getElementById('settingsUsersBody'),tl=document.getElementById('settingsTechList'),pb=document.getElementById('settingsPending');
  if(!ub||!tl||!pb)return;
  if(!canSettings()){ub.innerHTML='';tl.innerHTML='';pb.innerHTML='';return}
- ub.innerHTML=settingsUsers.length?settingsUsers.map(u=>`<tr><td><b>${esc(u.full_name)}</b></td><td>${esc(u.email)}</td><td><span class="role-chip">${esc(titleRole(u.role))}</span></td><td>${u.active?'<span style="color:#087443;font-weight:800">Active</span>':'<span style="color:#b42318;font-weight:800">Inactive</span>'}</td><td><div class="settings-actions"><button class="mini-btn" onclick="openUserModal('${u.id}')">Edit</button><button class="mini-btn ${u.active?'danger':'ok'}" onclick="toggleUserActive('${u.id}',${!u.active})">${u.active?'Deactivate':'Reactivate'}</button></div></td></tr>`).join(''):'<tr><td colspan="5">No users loaded yet.</td></tr>';
+ ub.innerHTML=settingsUsers.length?settingsUsers.map(u=>{const editable=canManageUser(u);return `<tr><td><b>${esc(u.full_name)}</b></td><td>${esc(u.email)}</td><td><span class="role-chip">${esc(titleRole(u.role))}</span></td><td>${u.active?'<span style="color:#087443;font-weight:800">Active</span>':'<span style="color:#b42318;font-weight:800">Inactive</span>'}</td><td>${editable?`<div class="settings-actions"><button class="mini-btn" onclick="openUserModal('${u.id}')">Edit</button><button class="mini-btn ${u.active?'danger':'ok'}" onclick="toggleUserActive('${u.id}',${!u.active})">${u.active?'Deactivate':'Reactivate'}</button></div>`:'<span class="small">Protected</span>'}</td></tr>`}).join(''):'<tr><td colspan="5">No users loaded yet.</td></tr>';
  tl.innerHTML=techRows.length?techRows.map(t=>`<div class="tech-row"><div><b>${esc(t.name)}</b><div class="small">${t.active?'Active':'Inactive'}</div></div><div class="settings-actions"><button class="mini-btn" onclick="renameTechnician('${t.id}','${esc(t.name).replace(/'/g,"&#39;")}')">Rename</button><button class="mini-btn ${t.active?'danger':'ok'}" onclick="toggleTechnician('${t.id}',${!t.active})">${t.active?'Deactivate':'Reactivate'}</button></div></div>`).join(''):'<div class="small">No technicians added yet.</div>';
  const pending=scheduleRequests.filter(r=>r.status==='pending');
  pb.innerHTML=pending.length?pending.map(r=>{const c=cards.find(x=>x.id===r.job_id);return `<div class="pending-row"><div><b>${c?`RO ${esc(c.ro)} · ${esc(c.customer)}`:'RO'}</b><br><span class="small">${esc(profiles[r.requested_by]||titleRole(r.requested_role))} · ${fmt(r.original_pdi_at)} → <b>${fmt(r.requested_pdi_at)}</b></span></div>${canReviewRequests()?`<div class="settings-actions"><button class="mini-btn ok" onclick="reviewScheduleRequest('${r.id}','approved')">Accept</button><button class="mini-btn danger" onclick="reviewScheduleRequest('${r.id}','declined')">Decline</button></div>`:'<span class="pending-chip">Awaiting Carlo</span>'}</div>`}).join(''):'<div class="small">No pending schedule changes.</div>';
@@ -650,8 +669,9 @@ function renderSettings(){
 function openUserModal(id=''){
  if(!canSettings())return;
  const u=settingsUsers.find(x=>x.id===id);
+ if(u&&!canManageUser(u)){toast('Managers and Workshop Control can only manage Sales users.',true);return}
  document.getElementById('editUserId').value=id||'';
- document.getElementById('userModalTitle').textContent=u?'Edit User':'Add User';
+ document.getElementById('userModalTitle').textContent=u?'Edit User':'Add Sales User';
  document.getElementById('editUserName').value=u?.full_name||'';
  document.getElementById('editUserEmail').value=u?.email||'';
  document.getElementById('editUserRole').value=u?.role||'sales';
@@ -659,14 +679,19 @@ function openUserModal(id=''){
  document.getElementById('newPasswordField').style.display=u?'none':'block';
  document.getElementById('activeUserField').style.display=u?'block':'none';
  document.getElementById('editUserActive').checked=u?.active??true;
+ const roleSelect=document.getElementById('editUserRole');
+ Array.from(roleSelect.options).forEach(o=>{o.disabled=!isAdmin()&&o.value!=='sales'});
+ if(!isAdmin())roleSelect.value='sales';
  document.getElementById('resetPasswordArea').style.display=u&&isAdmin()?'block':'none';
- document.getElementById('editUserRole').querySelector('option[value="admin"]').disabled=!isAdmin();
  document.getElementById('userModal').classList.add('open')
 }
 function closeUserModal(){document.getElementById('userModal').classList.remove('open')}
 async function saveUser(){
  const id=document.getElementById('editUserId').value,name=document.getElementById('editUserName').value.trim(),email=document.getElementById('editUserEmail').value.trim(),role=document.getElementById('editUserRole').value;
  if(!name||!email){toast('Name and email are required',true);return}
+ const existing=id?settingsUsers.find(x=>x.id===id):null;
+ if(existing&&!canManageUser(existing)){toast('Managers and Workshop Control can only manage Sales users.',true);return}
+ if(!canCreateRole(role)){toast('Only Admin can create or assign privileged roles.',true);return}
  try{
   showLoading(true);
   if(id){
@@ -680,6 +705,8 @@ async function saveUser(){
  }catch(e){showLoading(false);toast(e.message,true)}
 }
 async function toggleUserActive(id,active){
+ const u=settingsUsers.find(x=>x.id===id);
+ if(!u||!canManageUser(u)){toast('Managers and Workshop Control can only manage Sales users.',true);return}
  try{showLoading(true);await callUserAdmin({action:'update_user',user_id:id,active});await loadSettingsUsers();showLoading(false);toast(active?'User reactivated':'User deactivated')}catch(e){showLoading(false);toast(e.message,true)}
 }
 async function resetUserPassword(){
