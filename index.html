@@ -100,6 +100,28 @@ button,input,select,textarea{font:inherit}.app{max-width:1920px;margin:auto;padd
 .month-jumpbar button{cursor:pointer}
 .month-jumpbar button:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(25,28,45,.08)}
 
+
+/* V1.5 surgical workflow additions */
+.crossweek-rail{padding:10px 12px;border-bottom:1px solid var(--line);background:linear-gradient(180deg,#fbfbfd,#f7f8fc)}
+.crossweek-title{font-size:9px;font-weight:950;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:0 0 7px}
+.crossweek-days{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.crossweek-day{background:#fff;border:1px solid var(--line);border-radius:13px;padding:9px}
+.crossweek-day h4{margin:0 0 7px;font-size:11px}
+.crossweek-slots{display:grid;grid-template-columns:repeat(9,1fr);gap:4px}
+.crossweek-slot{min-height:34px;border:1px dashed #cfd6e5;border-radius:8px;background:#fbfcff;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:900;color:#697386}
+.crossweek-slot.drag-over{border-color:#7753f4;background:#f4f0ff;box-shadow:0 0 0 2px rgba(119,83,244,.1)}
+.crossweek-cards{margin-top:7px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.priority-approval{margin-top:10px;padding:12px;border:2px solid #ef675b;border-radius:14px;background:linear-gradient(180deg,#fff7f5,#fff)}
+.priority-approval .flags{font-size:16px;letter-spacing:2px}
+.priority-approval h4{margin:4px 0 6px;color:#b42318;font-size:11px}
+.priority-actions{display:flex;gap:8px;margin-top:9px;flex-wrap:wrap}
+.priority-actions button{border:0;border-radius:10px;padding:9px 12px;font-size:10px;font-weight:950;cursor:pointer}
+.priority-actions .approve{background:#17a66b;color:#fff;box-shadow:0 8px 18px rgba(23,166,107,.18)}
+.priority-actions .decline{background:#fff0ee;color:#b42318;border:1px solid #ffd0ca}
+.ready-badge{display:inline-flex;align-items:center;background:#def8ec;color:#087453;border:1px solid #b9ead3;border-radius:999px;padding:4px 7px;font-size:8px;font-weight:950;margin-top:5px}
+.card.customer-card.ready{border-color:#8dddbd;border-left-color:#18a974;box-shadow:0 8px 22px rgba(24,169,116,.08)}
+.card.combined-card.completed-work{background:linear-gradient(145deg,#eafff5,#d7f8e8);border-color:#8dddbd;border-left-color:#18a974}
+
 </style>
 </head>
 <body>
@@ -138,7 +160,13 @@ button,input,select,textarea{font:inherit}.app{max-width:1920px;margin:auto;padd
   </div>
   <div class="legend"><span class="week-legend"><span><i class="swatch customer"></i>Customer commitment</span><span><i class="swatch workflow"></i>Workshop plan</span><span><i class="swatch risk"></i>At risk</span><span><i class="swatch complete"></i>Complete</span></span></div>
 </div>
-  <div class="board-wrap"><div class="board"><div class="board-head" id="weekHead"></div><div class="board-body" id="weekBody"></div></div></div>
+  <div class="board-wrap"><div class="board">
+   <div class="crossweek-rail" id="crossweekRail">
+    <div class="crossweek-title">Previous working days · drag Workshop Plan here when Carlo wants to prep a Monday delivery in the prior week</div>
+    <div class="crossweek-days" id="crossweekDays"></div>
+   </div>
+   <div class="board-head" id="weekHead"></div><div class="board-body" id="weekBody"></div>
+  </div></div>
  </section>
 
  <section id="monthView" class="view panel">
@@ -300,6 +328,21 @@ function goCurrentWeek(){
   weekFromDate(new Date());
   render();
 }
+function priorWorkingDates(){
+ const mon=new Date(days[0][0]+'T12:00:00');
+ const fri=new Date(mon);fri.setDate(fri.getDate()-3);
+ const sat=new Date(mon);sat.setDate(sat.getDate()-2);
+ const key=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+ return [key(fri),key(sat)];
+}
+function managerRequestIsPriority(req,c){
+ if(!req||req.requested_role!=='manager'||!c||!effective(c))return false;
+ const requested=new Date(req.requested_pdi_at),customer=new Date(effective(c));
+ if(Number.isNaN(requested)||Number.isNaN(customer))return false;
+ const daysBefore=(customer-requested)/86400000;
+ return daysBefore>=0 && daysBefore<turnaroundBufferDays(c);
+}
+
 function shiftMonth(delta){
   currentMonth=new Date(currentMonth.getFullYear(),currentMonth.getMonth()+delta,1);
   setView('month');
@@ -450,7 +493,7 @@ function renderSettings(){
  ub.innerHTML=settingsUsers.length?settingsUsers.map(u=>{const editable=canManageUser(u);return `<tr><td><b>${esc(u.full_name)}</b></td><td>${esc(u.email)}</td><td><span class="role-chip">${esc(titleRole(u.role))}</span></td><td>${u.active?'<span style="color:#087443;font-weight:800">Active</span>':'<span style="color:#b42318;font-weight:800">Inactive</span>'}</td><td>${editable?`<div class="settings-actions"><button class="mini-btn" onclick="openUserModal('${u.id}')">Edit</button><button class="mini-btn ${u.active?'danger':'ok'}" onclick="toggleUserActive('${u.id}',${!u.active})">${u.active?'Deactivate':'Reactivate'}</button></div>`:'<span class="small">Protected</span>'}</td></tr>`}).join(''):'<tr><td colspan="5">No users loaded yet.</td></tr>';
  tl.innerHTML=techRows.length?techRows.map(t=>`<div class="tech-row"><div><b>${esc(t.name)}</b><div class="small">${t.active?'Active':'Inactive'}</div></div><div class="settings-actions"><button class="mini-btn" onclick="renameTechnician('${t.id}','${esc(t.name).replace(/'/g,"&#39;")}')">Rename</button><button class="mini-btn ${t.active?'danger':'ok'}" onclick="toggleTechnician('${t.id}',${!t.active})">${t.active?'Deactivate':'Reactivate'}</button></div></div>`).join(''):'<div class="small">No technicians added yet.</div>';
  const pending=scheduleRequests.filter(r=>r.status==='pending');
- pb.innerHTML=pending.length?pending.map(r=>{const c=cards.find(x=>x.id===r.job_id);return `<div class="pending-row"><div><b>${c?`RO ${esc(c.ro)} · ${esc(c.customer)}`:'RO'}</b><br><span class="small">${esc(profiles[r.requested_by]||titleRole(r.requested_role))} · ${fmt(r.original_pdi_at)} → <b>${fmt(r.requested_pdi_at)}</b></span></div>${canReviewRequests()?`<div class="settings-actions"><button class="mini-btn ok" onclick="reviewScheduleRequest('${r.id}','approved')">Accept</button><button class="mini-btn danger" onclick="reviewScheduleRequest('${r.id}','declined')">Decline</button></div>`:'<span class="pending-chip">Awaiting Carlo</span>'}</div>`}).join(''):'<div class="small">No pending schedule changes.</div>';
+ pb.innerHTML=pending.length?pending.map(r=>{const c=cards.find(x=>x.id===r.job_id),priority=managerRequestIsPriority(r,c);return priority?`<div class="priority-approval"><div class="flags">🚩🚩🚩</div><h4>${c?`RO ${esc(c.ro)} · ${esc(c.customer)}`:'WORKSHOP APPROVAL'}</h4><div class="small">${esc(profiles[r.requested_by]||titleRole(r.requested_role))} requested ${fmt(r.requested_pdi_at)} · inside ${c?turnaroundBufferDays(c):3}-day buffer</div>${canReviewRequests()?`<div class="priority-actions"><button class="approve" onclick="reviewScheduleRequest('${r.id}','approved')">✓ APPROVE MOVE</button><button class="decline" onclick="reviewScheduleRequest('${r.id}','declined')">✕ DECLINE</button></div>`:'<div class="pending-chip">Awaiting Workshop Control</div>'}</div>`:`<div class="pending-row"><div><b>${c?`RO ${esc(c.ro)} · ${esc(c.customer)}`:'RO'}</b><br><span class="small">${esc(profiles[r.requested_by]||titleRole(r.requested_role))} · ${fmt(r.original_pdi_at)} → <b>${fmt(r.requested_pdi_at)}</b></span></div>${canReviewRequests()?`<div class="settings-actions"><button class="mini-btn ok" onclick="reviewScheduleRequest('${r.id}','approved')">Accept</button><button class="mini-btn danger" onclick="reviewScheduleRequest('${r.id}','declined')">Decline</button></div>`:'<span class="pending-chip">Awaiting Carlo</span>'}</div>`}).join(''):'<div class="small">No pending schedule changes.</div>';
 }
 function openUserModal(id=''){
  if(!canSettings())return;
@@ -536,22 +579,46 @@ function renderWeek(v){
  document.getElementById('weekHead').innerHTML=`<div class="dayhead"><span class="badge">${unscheduled.length+recovery.length}</span><div class="d">INBOX</div><div class="dt">Needs allocation</div></div>`+days.map(d=>`<div class="dayhead"><span class="badge">${visuals.filter(x=>x.slot.startsWith(d[0])&&slotHours.has(new Date(x.slot).getHours())).length}</span><div class="d">${d[1]}</div><div class="dt">${d[2]}</div></div>`).join('');
  let left=`<div class="daycol inbox"><div class="slot dropzone" data-date="" data-time=""><div class="slot-title"><span>UNSCHEDULED</span><span>${unscheduled.length}</span></div>${unscheduled.map(c=>visualCardHtml(c,'customer')).join('')||'<div class="inbox-note">ROs with no customer delivery date and no Carlo workshop slot appear here.</div>'}</div>${recovery.length?`<div class="slot"><div class="slot-title"><span>⚠ NEEDS RESCHEDULING</span><span>${recovery.length}</span></div>${recovery.map(x=>visualCardHtml(x.c,x.kind)).join('')}<div class="inbox-note">These visual moments have a saved time outside the visible 8am–4pm board. Drag the Workshop Plan into a normal slot.</div></div>`:''}</div>`;
  let cols=days.map(d=>`<div class="daycol">${slots.map(sl=>{const here=visuals.filter(x=>x.slot.startsWith(d[0])&&new Date(x.slot).getHours()===+sl[0].slice(0,2));return `<div class="slot dropzone" data-date="${d[0]}" data-time="${sl[0]}"><div class="slot-title"><span>${sl[1]}</span><span>${here.length}</span></div>${here.map(x=>visualCardHtml(x.c,x.kind)).join('')}</div>`}).join('')}</div>`).join('');
- document.getElementById('weekBody').innerHTML=left+cols;bindDnD();
+ document.getElementById('weekBody').innerHTML=left+cols;
+
+ const prior=priorWorkingDates();
+ const cross=document.getElementById('crossweekDays');
+ if(cross){
+   cross.innerHTML=prior.map(key=>{
+     const d=new Date(key+'T12:00:00');
+     const label=d.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'}).toUpperCase();
+     const planned=v.filter(c=>workshopSlot(c)&&dateKey(workshopSlot(c))===key);
+     return `<div class="crossweek-day">
+       <h4>${label} <span class="small">· ${planned.length} planned</span></h4>
+       <div class="crossweek-slots">${slots.map(sl=>`<div class="crossweek-slot dropzone" data-date="${key}" data-time="${sl[0]}">${sl[1].replace(':00 ',' ')}</div>`).join('')}</div>
+       ${planned.length?`<div class="crossweek-cards">${planned.map(c=>visualCardHtml(c,'workflow')).join('')}</div>`:''}
+     </div>`;
+   }).join('');
+ }
+ bindDnD();
 }
 function visualCardHtml(c,kind='customer'){
  const state=trafficState(c),conflict=workshopAfterCustomer(c),fc=c.finance==='Approved'?'approved':c.finance==='Not Approved'?'pending':'unset',flagged=exceptionFlag(c),buffer=turnaroundBufferDays(c),ctrl=canControl();
- const pending=latestPendingForJob(c.id),isWorkflow=kind==='workflow',isCombined=kind==='combined';
- const canDrag=canDirectSchedule()||roleKey()==='manager';
+ const pending=latestPendingForJob(c.id),isWorkflow=kind==='workflow',isCombined=kind==='combined',complete=c.status==='Complete';
+ const canDrag=!complete&&(canDirectSchedule()||roleKey()==='manager');
  let cls=kind==='customer'?'customer-card':isWorkflow?'workflow-card':'combined-card';
- if(conflict)cls+=' at-risk';if(isWorkflow&&c.status==='Complete')cls+=' completed-work';
- const layer=isCombined?'ALIGNED • CUSTOMER + WORKSHOP':isWorkflow?'WORKSHOP PLAN':'CUSTOMER COMMITMENT';
+ if(conflict&&!complete)cls+=' at-risk';
+ if(isWorkflow&&complete)cls+=' completed-work';
+ if(isCombined&&complete)cls+=' completed-work';
+ if(!isWorkflow&&!isCombined&&complete)cls+=' ready';
+ const layer=isCombined?(complete?'PDI COMPLETE • CUSTOMER + WORKSHOP':'ALIGNED • CUSTOMER + WORKSHOP'):isWorkflow?(complete?'PDI COMPLETE':'WORKSHOP PLAN'):'CUSTOMER COMMITMENT';
  const layerClass=isCombined?'combined':isWorkflow?'workflow':'customer';
  const primaryTime=isWorkflow?workshopSlot(c):effective(c);
  const subTime=isWorkflow&&effective(c)?`Customer: ${fmt(effective(c))}`:(!isWorkflow&&workshopSlot(c)?`Workshop: ${fmt(workshopSlot(c))}`:'');
- const riskAlert=!isWorkflow&&conflict?`<div class="reschedule-alert">🚨 Reschedule required<br>Workshop now ready ${fmt(workshopSlot(c))}</div>`:'';
+ const riskAlert=!isWorkflow&&!complete&&conflict?`<div class="reschedule-alert">🚨 Reschedule required<br>Workshop now ready ${fmt(workshopSlot(c))}</div>`:'';
+ const readyAlert=!isWorkflow&&complete?`<div class="ready-badge">✅ READY FOR DELIVERY</div>`:'';
  const workflowNote=isWorkflow&&effective(c)?`<div class="shadow-link">Customer commitment stays ${fmt(effective(c))}</div>`:'';
- const actions=isWorkflow||isCombined?`<div class="actions"><button onclick="event.stopPropagation();openDrawer('${c.id}')">Open</button><button class="block ${ctrl?'':'disabled-action'}" onclick="event.stopPropagation();openDelay('${c.id}')">${c.status==='Delayed'?'Edit Delay':'Delays'}</button><button class="done ${ctrl?'':'disabled-action'}" onclick="event.stopPropagation();completeJob('${c.id}',this)">⚡ COMPLETE</button></div>`:`<div class="actions"><button onclick="event.stopPropagation();openDrawer('${c.id}')">Open</button>${!workshopSlot(c)&&canDirectSchedule()?'<button title="Drag this customer commitment into a workshop slot">Drag to plan PDI</button>':''}</div>`;
- return `<article class="card ${cls}" draggable="${canDrag}" data-id="${c.id}" data-kind="${kind}" ondblclick="openDrawer('${c.id}')"><div class="layer-label ${layerClass}">${layer}</div><div class="cardtop"><span class="ro">RO ${esc(c.ro)}</span><span class="pill ${c.type==='NEW'?'new':'used'}">${esc(c.type)}</span></div><div class="small">Deal ${esc(c.deal)}</div><div class="customer" title="${esc(c.customer)}">${esc(c.customer)}</div><div class="veh">${esc(c.vehicle)}</div><div class="small">${esc(c.stock)} · ${esc(c.location)}</div><span class="person">${esc(c.sales)}</span>${c.tech!=='Unassigned'?` <span class="person tech">🔧 ${esc(c.tech)}</span>`:''}<div><span class="traffic-chip ${state.key}">${state.label}</span></div>${pending?`<div class="pending-chip">⏳ Manager change requested · ${fmt(pending.requested_pdi_at)}</div>`:''}<div class="delivery"><div><span class="small">${isWorkflow?'Planned / revised workshop ready':c.booked?'Booked customer delivery':'Estimated customer delivery'}</span><strong>${fmt(primaryTime)}</strong>${subTime?`<div class="small">${subTime}</div>`:''}${flagged&&!conflict?`<div class="exception-note"><span class="exception-flags">🚩🚩🚩</span> Inside ${buffer}-day turnaround</div>`:''}</div><span class="finance ${fc}">${esc(c.finance)}</span></div>${riskAlert}${workflowNote}${c.status==='Delayed'&&c.proposedCompletion&&isWorkflow?`<div class="small" style="margin-top:6px;color:#a06508"><b>Delay:</b> ${esc(c.delayReason||'Reason recorded')}</div>`:''}${actions}</article>`
+ const statusChip=complete?`<span class="traffic-chip complete">✅ COMPLETE</span>`:`<span class="traffic-chip ${state.key}">${state.label}</span>`;
+ const completeMeta=isWorkflow&&complete?`<div class="small" style="margin-top:5px;color:#087453"><b>Completed:</b> ${fmt(c.completedAt)}</div>`:'';
+ const actions=isWorkflow||isCombined
+   ?`<div class="actions"><button onclick="event.stopPropagation();openDrawer('${c.id}')">Open</button><button class="block ${ctrl?'':'disabled-action'}" onclick="event.stopPropagation();openDelay('${c.id}')">${c.status==='Delayed'?'Edit Delay':'Delays'}</button>${complete?'':`<button class="done ${ctrl?'':'disabled-action'}" onclick="event.stopPropagation();completeJob('${c.id}',this)">⚡ COMPLETE</button>`}</div>`
+   :`<div class="actions"><button onclick="event.stopPropagation();openDrawer('${c.id}')">Open</button>${!workshopSlot(c)&&canDirectSchedule()?'<button title="Drag this customer commitment into a workshop slot">Drag to plan PDI</button>':''}</div>`;
+ return `<article class="card ${cls}" draggable="${canDrag}" data-id="${c.id}" data-kind="${kind}" ondblclick="openDrawer('${c.id}')"><div class="layer-label ${layerClass}">${layer}</div><div class="cardtop"><span class="ro">RO ${esc(c.ro)}</span><span class="pill ${c.type==='NEW'?'new':'used'}">${esc(c.type)}</span></div><div class="small">Deal ${esc(c.deal)}</div><div class="customer" title="${esc(c.customer)}">${esc(c.customer)}</div><div class="veh">${esc(c.vehicle)}</div><div class="small">${esc(c.stock)} · ${esc(c.location)}</div><span class="person">${esc(c.sales)}</span>${c.tech!=='Unassigned'?` <span class="person tech">🔧 ${esc(c.tech)}</span>`:''}<div>${statusChip}</div>${readyAlert}${pending?`<div class="pending-chip">⏳ Manager change requested · ${fmt(pending.requested_pdi_at)}</div>`:''}<div class="delivery"><div><span class="small">${isWorkflow?'Planned / revised workshop ready':c.booked?'Booked customer delivery':'Estimated customer delivery'}</span><strong>${fmt(primaryTime)}</strong>${subTime?`<div class="small">${subTime}</div>`:''}${flagged&&!conflict&&!complete?`<div class="exception-note"><span class="exception-flags">🚩🚩🚩</span> Inside ${buffer}-day turnaround</div>`:''}</div><span class="finance ${fc}">${esc(c.finance)}</span></div>${riskAlert}${workflowNote}${completeMeta}${c.status==='Delayed'&&c.proposedCompletion&&isWorkflow?`<div class="small" style="margin-top:6px;color:#a06508"><b>Delay:</b> ${esc(c.delayReason||'Reason recorded')}</div>`:''}${actions}</article>`
 }
 function cardHtml(c){return visualCardHtml(c,'workflow')}
 async function requestScheduleChange(id,next){
@@ -623,7 +690,7 @@ function openDrawer(id){
  document.getElementById('dNote').disabled=!ctrl;
  document.getElementById('drawerSaveBtn').classList.toggle('disabled-action',!ctrl);
  const reqs=pendingForJob(c.id);
- document.getElementById('drawerPending').innerHTML=reqs.length?`<div class="pending-panel"><h4>⏳ Pending schedule change${reqs.length>1?'s':''}</h4>${reqs.map(r=>`<div class="pending-row"><div><b>${esc(profiles[r.requested_by]||titleRole(r.requested_role))}</b><br><span class="small">${fmt(r.original_pdi_at)} → <b>${fmt(r.requested_pdi_at)}</b></span></div>${canReviewRequests()?`<div class="settings-actions"><button class="mini-btn ok" onclick="reviewScheduleRequest('${r.id}','approved')">Accept</button><button class="mini-btn danger" onclick="reviewScheduleRequest('${r.id}','declined')">Decline</button></div>`:'<span class="pending-chip">Awaiting Carlo</span>'}</div>`).join('')}</div>`:'';
+ document.getElementById('drawerPending').innerHTML=reqs.length?reqs.map(r=>{const priority=managerRequestIsPriority(r,c);return priority?`<div class="priority-approval"><div class="flags">🚩🚩🚩</div><h4>WORKSHOP CONTROL APPROVAL REQUIRED</h4><div class="small"><b>${esc(profiles[r.requested_by]||titleRole(r.requested_role))}</b> requested <b>${fmt(r.requested_pdi_at)}</b><br>Current workshop plan: ${fmt(r.original_pdi_at)}<br>Customer commitment: ${fmt(effective(c))}<br>This request sits inside the ${turnaroundBufferDays(c)}-day turnaround buffer.</div>${canReviewRequests()?`<div class="priority-actions"><button class="approve" onclick="reviewScheduleRequest('${r.id}','approved')">✓ APPROVE MOVE</button><button class="decline" onclick="reviewScheduleRequest('${r.id}','declined')">✕ DECLINE</button></div>`:'<div class="pending-chip">Awaiting Workshop Control</div>'}</div>`:`<div class="pending-panel"><h4>⏳ Pending schedule change</h4><div class="pending-row"><div><b>${esc(profiles[r.requested_by]||titleRole(r.requested_role))}</b><br><span class="small">${fmt(r.original_pdi_at)} → <b>${fmt(r.requested_pdi_at)}</b></span></div>${canReviewRequests()?`<div class="settings-actions"><button class="mini-btn ok" onclick="reviewScheduleRequest('${r.id}','approved')">Accept</button><button class="mini-btn danger" onclick="reviewScheduleRequest('${r.id}','declined')">Decline</button></div>`:'<span class="pending-chip">Awaiting Carlo</span>'}</div></div>`}).join(''):'';
  document.getElementById('history').innerHTML=c.notes.slice().reverse().map(n=>`<div class="history-item"><b>${esc(n[1])}</b><span>${esc(n[0])}</span><div>${esc(n[2])}</div></div>`).join('')||'<div class="small" style="margin-top:8px">No activity yet.</div>';
  document.getElementById('drawer').classList.add('open')
 }
@@ -664,7 +731,7 @@ function renderSettings(){
  ub.innerHTML=settingsUsers.length?settingsUsers.map(u=>{const editable=canManageUser(u);return `<tr><td><b>${esc(u.full_name)}</b></td><td>${esc(u.email)}</td><td><span class="role-chip">${esc(titleRole(u.role))}</span></td><td>${u.active?'<span style="color:#087443;font-weight:800">Active</span>':'<span style="color:#b42318;font-weight:800">Inactive</span>'}</td><td>${editable?`<div class="settings-actions"><button class="mini-btn" onclick="openUserModal('${u.id}')">Edit</button><button class="mini-btn ${u.active?'danger':'ok'}" onclick="toggleUserActive('${u.id}',${!u.active})">${u.active?'Deactivate':'Reactivate'}</button></div>`:'<span class="small">Protected</span>'}</td></tr>`}).join(''):'<tr><td colspan="5">No users loaded yet.</td></tr>';
  tl.innerHTML=techRows.length?techRows.map(t=>`<div class="tech-row"><div><b>${esc(t.name)}</b><div class="small">${t.active?'Active':'Inactive'}</div></div><div class="settings-actions"><button class="mini-btn" onclick="renameTechnician('${t.id}','${esc(t.name).replace(/'/g,"&#39;")}')">Rename</button><button class="mini-btn ${t.active?'danger':'ok'}" onclick="toggleTechnician('${t.id}',${!t.active})">${t.active?'Deactivate':'Reactivate'}</button></div></div>`).join(''):'<div class="small">No technicians added yet.</div>';
  const pending=scheduleRequests.filter(r=>r.status==='pending');
- pb.innerHTML=pending.length?pending.map(r=>{const c=cards.find(x=>x.id===r.job_id);return `<div class="pending-row"><div><b>${c?`RO ${esc(c.ro)} · ${esc(c.customer)}`:'RO'}</b><br><span class="small">${esc(profiles[r.requested_by]||titleRole(r.requested_role))} · ${fmt(r.original_pdi_at)} → <b>${fmt(r.requested_pdi_at)}</b></span></div>${canReviewRequests()?`<div class="settings-actions"><button class="mini-btn ok" onclick="reviewScheduleRequest('${r.id}','approved')">Accept</button><button class="mini-btn danger" onclick="reviewScheduleRequest('${r.id}','declined')">Decline</button></div>`:'<span class="pending-chip">Awaiting Carlo</span>'}</div>`}).join(''):'<div class="small">No pending schedule changes.</div>';
+ pb.innerHTML=pending.length?pending.map(r=>{const c=cards.find(x=>x.id===r.job_id),priority=managerRequestIsPriority(r,c);return priority?`<div class="priority-approval"><div class="flags">🚩🚩🚩</div><h4>${c?`RO ${esc(c.ro)} · ${esc(c.customer)}`:'WORKSHOP APPROVAL'}</h4><div class="small">${esc(profiles[r.requested_by]||titleRole(r.requested_role))} requested ${fmt(r.requested_pdi_at)} · inside ${c?turnaroundBufferDays(c):3}-day buffer</div>${canReviewRequests()?`<div class="priority-actions"><button class="approve" onclick="reviewScheduleRequest('${r.id}','approved')">✓ APPROVE MOVE</button><button class="decline" onclick="reviewScheduleRequest('${r.id}','declined')">✕ DECLINE</button></div>`:'<div class="pending-chip">Awaiting Workshop Control</div>'}</div>`:`<div class="pending-row"><div><b>${c?`RO ${esc(c.ro)} · ${esc(c.customer)}`:'RO'}</b><br><span class="small">${esc(profiles[r.requested_by]||titleRole(r.requested_role))} · ${fmt(r.original_pdi_at)} → <b>${fmt(r.requested_pdi_at)}</b></span></div>${canReviewRequests()?`<div class="settings-actions"><button class="mini-btn ok" onclick="reviewScheduleRequest('${r.id}','approved')">Accept</button><button class="mini-btn danger" onclick="reviewScheduleRequest('${r.id}','declined')">Decline</button></div>`:'<span class="pending-chip">Awaiting Carlo</span>'}</div>`}).join(''):'<div class="small">No pending schedule changes.</div>';
 }
 function openUserModal(id=''){
  if(!canSettings())return;
