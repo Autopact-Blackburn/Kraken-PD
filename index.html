@@ -122,6 +122,36 @@ button,input,select,textarea{font:inherit}.app{max-width:1920px;margin:auto;padd
 .card.customer-card.ready{border-color:#8dddbd;border-left-color:#18a974;box-shadow:0 8px 22px rgba(24,169,116,.08)}
 .card.combined-card.completed-work{background:linear-gradient(145deg,#eafff5,#d7f8e8);border-color:#8dddbd;border-left-color:#18a974}
 
+
+/* V1.6 KPI compact list + quick editor */
+.kpi-drawer{position:fixed;top:0;right:-460px;width:min(440px,94vw);height:100vh;background:#f7f8fc;border-left:1px solid var(--line);box-shadow:-22px 0 55px rgba(25,28,45,.15);z-index:88;transition:right .22s ease;display:flex;flex-direction:column}
+.kpi-drawer.open{right:0}
+.kpi-drawer-head{padding:18px 18px 12px;background:#fff;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.kpi-drawer-head h3{margin:2px 0 2px;font-family:"Archivo Black";font-size:18px}
+.kpi-drawer-head p{margin:0;color:var(--muted);font-size:10px}
+.kpi-drawer-close{border:1px solid var(--line);background:#fff;border-radius:10px;width:32px;height:32px;cursor:pointer;font-weight:900}
+.kpi-list{padding:12px;overflow:auto;display:flex;flex-direction:column;gap:8px}
+.kpi-list-card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:11px 12px;cursor:pointer;transition:.15s ease;box-shadow:0 5px 14px rgba(32,36,52,.04)}
+.kpi-list-card:hover{transform:translateY(-1px);border-color:#866cf1;box-shadow:0 9px 24px rgba(61,44,132,.09)}
+.kpi-list-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.kpi-list-top b{font-size:11px}.kpi-list-ro{font-size:10px;font-weight:950;color:#4d38c6}
+.kpi-list-customer{font-size:12px;font-weight:950;margin:4px 0 2px}.kpi-list-vehicle{font-size:10px;color:#3a4152}
+.kpi-dates{display:grid;grid-template-columns:1fr 1fr;gap:7px;margin-top:9px}
+.kpi-datebox{background:#f8f8fc;border-radius:10px;padding:7px 8px}.kpi-datebox span{display:block;font-size:8px;text-transform:uppercase;font-weight:900;letter-spacing:.05em;color:var(--muted)}.kpi-datebox b{font-size:9px}
+.kpi-card-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:8px}
+.awaiting-oracle{display:inline-flex;align-items:center;background:#fff3d5;color:#966100;border:1px solid #f4dc9a;border-radius:999px;padding:4px 7px;font-size:8px;font-weight:950}
+.quick-modal{position:fixed;inset:0;background:rgba(20,22,31,.35);display:none;align-items:center;justify-content:center;z-index:95;padding:20px}
+.quick-modal.open{display:flex}
+.quick-card{width:min(560px,96vw);max-height:90vh;overflow:auto;background:#fff;border-radius:22px;padding:20px;box-shadow:0 28px 80px rgba(20,22,31,.2);position:relative}
+.quick-card h3{font-family:"Archivo Black";margin:2px 0 3px}.quick-section{border:1px solid var(--line);border-radius:15px;padding:13px;margin-top:12px}
+.quick-section h4{margin:0 0 4px;font-size:11px}.quick-section p{margin:0 0 9px;color:var(--muted);font-size:9px}
+.quick-grid{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end}
+.quick-grid input{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px;font:inherit;font-size:11px}
+.quick-grid button{border:0;border-radius:10px;padding:10px 12px;font-size:10px;font-weight:950;cursor:pointer;background:#6847db;color:#fff}
+.quick-grid button.green{background:#159a67}.quick-grid button:disabled{opacity:.45;cursor:not-allowed}
+.quick-rule{font-size:9px;color:var(--muted);margin-top:6px}.quick-warning{margin-top:8px;padding:8px 9px;border-radius:10px;background:#fff4df;color:#9a6200;font-size:9px;font-weight:800}
+.quick-readonly{background:#f6f7fa!important;color:#697386}
+
 </style>
 </head>
 <body>
@@ -225,6 +255,49 @@ button,input,select,textarea{font:inherit}.app{max-width:1920px;margin:auto;padd
 </aside>
 
 
+
+<aside class="kpi-drawer" id="kpiDrawer">
+ <div class="kpi-drawer-head">
+  <div><div class="eyebrow">Workload List</div><h3 id="kpiDrawerTitle">Live ROs</h3><p id="kpiDrawerSub">Compact operational view</p></div>
+  <button class="kpi-drawer-close" onclick="closeKpiDrawer()">✕</button>
+ </div>
+ <div class="kpi-list" id="kpiList"></div>
+</aside>
+
+<div class="quick-modal" id="quickModal">
+ <div class="quick-card">
+  <button class="close" onclick="closeQuickEditor()">✕</button>
+  <div class="eyebrow">Quick Edit</div>
+  <h3 id="quickTitle">RO</h3>
+  <div class="small" id="quickSub"></div>
+
+  <div class="quick-section">
+   <h4>Customer Commitment</h4>
+   <p>Sales owns the customer commitment. Requested changes remain marked Awaiting Oracle until Tim’s feed matches.</p>
+   <div class="quick-grid">
+    <input id="quickCustomerDate" type="datetime-local">
+    <button id="quickCustomerSave" onclick="saveQuickCustomerDate()">Update customer time</button>
+   </div>
+   <div class="quick-rule" id="quickCustomerRule"></div>
+   <div class="quick-warning" id="quickOracleWarning" style="display:none">⏳ Awaiting Oracle confirmation</div>
+  </div>
+
+  <div class="quick-section">
+   <h4>Workshop Plan</h4>
+   <p>Workshop Control/Admin move directly. Managers submit a request for Workshop Control approval.</p>
+   <div class="quick-grid">
+    <input id="quickWorkshopDate" type="datetime-local">
+    <button id="quickWorkshopSave" class="green" onclick="saveQuickWorkshopDate()">Update workshop plan</button>
+   </div>
+   <div class="quick-rule" id="quickWorkshopRule"></div>
+  </div>
+
+  <div style="display:flex;justify-content:flex-end;margin-top:12px">
+   <button class="ghost" onclick="openFullFromQuick()">Open full RO</button>
+  </div>
+ </div>
+</div>
+
 <div class="delay-modal" id="delayModal">
  <div class="delay-box">
   <button class="close" onclick="closeDelay()">✕</button>
@@ -262,7 +335,7 @@ const SUPABASE_URL='https://bcslxrsjiycfryzooxfo.supabase.co';
 const SUPABASE_ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJjc2x4cnNqaXljZnJ5em9veGZvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODcwOTc1NzUsImV4cCI6MjEwMjY3MzU3NX0.4IJIi_y6BwNeuN8-6ICrgO6H-kjCBkKIOQra585yuAk';
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 const slots=[['08:00','8:00 AM'],['09:00','9:00 AM'],['10:00','10:00 AM'],['11:00','11:00 AM'],['12:00','12:00 PM'],['13:00','1:00 PM'],['14:00','2:00 PM'],['15:00','3:00 PM'],['16:00','4:00 PM']];
-let NOW=new Date(),days=[],cards=[],technicians=['Unassigned'],techRows=[],profiles={},filter='all',currentId=null,delayId=null,currentProfile=null,currentSession=null,currentMonth=new Date(),scheduleRequests=[],settingsUsers=[];
+let NOW=new Date(),days=[],cards=[],technicians=['Unassigned'],techRows=[],profiles={},filter='all',currentId=null,delayId=null,currentProfile=null,currentSession=null,currentMonth=new Date(),scheduleRequests=[],settingsUsers=[],quickId=null,currentStatList='live';
 let refreshTimer=null,weatherTimer=null,syncInFlight=false,dragInProgress=false,lastDataSignature="";
 const BACKGROUND_SYNC_MS=30*1000;
 
@@ -363,7 +436,14 @@ function goCurrentMonth(){
 }
 
 function eligible(c){return Boolean(c.deal&&c.ro)}
-function effective(c){return c.booked||c.estimated||''}
+function oracleCustomer(c){return c.booked||c.estimated||''}
+function customerRequestPending(c){
+ if(!c.requestedCustomer)return false;
+ const oracle=oracleCustomer(c);
+ if(!oracle)return true;
+ return Math.abs(new Date(oracle)-new Date(c.requestedCustomer))>60000
+}
+function effective(c){return customerRequestPending(c)?c.requestedCustomer:oracleCustomer(c)}
 function workshopSlot(c){return c.proposedCompletion||c.pdi||''}
 function boardSlot(c){return workshopSlot(c)||effective(c)||''}
 function sameVisibleSlot(a,b){if(!a||!b)return false;const da=new Date(a),db=new Date(b);return dateKeyLocal(da)===dateKeyLocal(db)&&da.getHours()===db.getHours()}
@@ -381,7 +461,7 @@ function trafficState(c){
  return {key:'ontrack',label:'🟢 On Track'};
 }
 
-function mapJob(j){const tech=techRows.find(t=>t.id===j.assigned_technician_id),sp=j.source_payload||{},customer=String(sp.customer_full_name||[sp.customer_first_name,sp.customer_surname].filter(Boolean).join(' ')||'Customer not set').trim();return {id:j.id,deal:j.deal_number||'',ro:j.ro_number||'',customer,type:j.vehicle_type||'NEW',vehicle:j.vehicle_description||'Vehicle description unavailable',stock:j.stock_number||'No stock #',sales:j.salesperson_name||'Unassigned salesperson',booked:j.booked_delivery_at||'',estimated:j.estimated_delivery_at||'',pdi:j.pdi_scheduled_at||'',finance:j.finance_approved===true?'Approved':j.finance_approved===false?'Not Approved':'Not set',status:j.status==='complete'?'Complete':j.status==='delayed'?'Delayed':'Open',location:j.vehicle_location||'Location not set',received:j.ro_created_at||j.created_at||'',completedAt:j.completed_at||'',tech:tech?.name||'Unassigned',techId:j.assigned_technician_id||null,delayReason:j.delay_reason||'',proposedCompletion:j.proposed_completion_at||'',notes:[]}}
+function mapJob(j){const tech=techRows.find(t=>t.id===j.assigned_technician_id),sp=j.source_payload||{},customer=String(sp.customer_full_name||[sp.customer_first_name,sp.customer_surname].filter(Boolean).join(' ')||'Customer not set').trim();return {id:j.id,deal:j.deal_number||'',ro:j.ro_number||'',customer,type:j.vehicle_type||'NEW',vehicle:j.vehicle_description||'Vehicle description unavailable',stock:j.stock_number||'No stock #',sales:j.salesperson_name||'Unassigned salesperson',booked:j.booked_delivery_at||'',estimated:j.estimated_delivery_at||'',requestedCustomer:j.requested_customer_delivery_at||'',requestedCustomerBy:j.requested_customer_delivery_by||null,requestedCustomerCreated:j.requested_customer_delivery_created_at||'',pdi:j.pdi_scheduled_at||'',finance:j.finance_approved===true?'Approved':j.finance_approved===false?'Not Approved':'Not set',status:j.status==='complete'?'Complete':j.status==='delayed'?'Delayed':'Open',location:j.vehicle_location||'Location not set',received:j.ro_created_at||j.created_at||'',completedAt:j.completed_at||'',tech:tech?.name||'Unassigned',techId:j.assigned_technician_id||null,delayReason:j.delay_reason||'',proposedCompletion:j.proposed_completion_at||'',notes:[]}}
 
 async function signIn(){setAuthError('');const email=document.getElementById('loginEmail').value.trim(),password=document.getElementById('loginPassword').value;if(!email||!password){setAuthError('Enter your email and password.');return}showLoading(true);const {data,error}=await sb.auth.signInWithPassword({email,password});if(error){showLoading(false);setAuthError(error.message);return}currentSession=data.session;const ok=await initialiseUser();showLoading(false);if(ok)document.getElementById('authScreen').classList.add('hidden')}
 async function signOut(){clearInterval(refreshTimer);clearInterval(weatherTimer);refreshTimer=null;weatherTimer=null;await sb.auth.signOut();currentSession=null;currentProfile=null;cards=[];document.getElementById('authScreen').classList.remove('hidden');document.getElementById('userChip').style.display='none'}
@@ -412,7 +492,7 @@ async function syncOracle(silent=false){
 
 function dataSignature(rows,techs,requests){
   return JSON.stringify({
-    jobs:(rows||[]).map(j=>[j.id,j.deal_number,j.ro_number,j.vehicle_type,j.vehicle_description,j.stock_number,j.salesperson_name,j.booked_delivery_at,j.estimated_delivery_at,j.ro_created_at,j.finance_approved,j.vehicle_location,j.pdi_scheduled_at,j.assigned_technician_id,j.status,j.delay_reason,j.proposed_completion_at,j.completed_at,j.source_payload?.customer_full_name,j.source_payload?.customer_first_name,j.source_payload?.customer_surname]),
+    jobs:(rows||[]).map(j=>[j.id,j.deal_number,j.ro_number,j.vehicle_type,j.vehicle_description,j.stock_number,j.salesperson_name,j.booked_delivery_at,j.estimated_delivery_at,j.ro_created_at,j.finance_approved,j.vehicle_location,j.pdi_scheduled_at,j.assigned_technician_id,j.status,j.delay_reason,j.proposed_completion_at,j.completed_at,j.requested_customer_delivery_at,j.requested_customer_delivery_by,j.requested_customer_delivery_created_at,j.source_payload?.customer_full_name,j.source_payload?.customer_first_name,j.source_payload?.customer_surname]),
     techs:(techs||[]).map(t=>[t.id,t.name,t.active]),
     requests:(requests||[]).map(r=>[r.id,r.job_id,r.requested_by,r.requested_role,r.original_pdi_at,r.requested_pdi_at,r.status,r.reviewed_by,r.reviewed_at,r.created_at])
   });
@@ -474,8 +554,99 @@ function matches(c){if(!matchesBase(c))return false;if(filter==='new'&&c.type!==
 function repopulateFilters(){const sf=document.getElementById('salesFilter'),tf=document.getElementById('techFilter'),sv=sf.value,tv=tf.value;sf.innerHTML='<option value="all">All Salespeople</option>'+[...new Set(cards.map(c=>c.sales).filter(Boolean))].sort().map(x=>`<option>${esc(x)}</option>`).join('');tf.innerHTML='<option value="all">All Technicians</option>'+technicians.map(x=>`<option>${esc(x)}</option>`).join('');sf.value=[...sf.options].some(o=>o.value===sv)?sv:'all';tf.value=[...tf.options].some(o=>o.value===tv)?tv:'all'}
 function render(){repopulateFilters();const base=cards.filter(matchesBase),v=cards.filter(matches);renderStats(base);renderWeek(v);renderMonth(v);renderReports(v);renderSettings();const pending=scheduleRequests.filter(r=>r.status==='pending').length;document.getElementById('pendingNavBadge').textContent=pending?` · ${pending}`:''}
 function renderStats(v){const monthName=currentMonth.toLocaleDateString('en-AU',{month:'short'});const lastDay=new Date(currentMonth.getFullYear(),currentMonth.getMonth()+1,0).getDate();const eomStart=Math.max(1,lastDay-6);const dueEom=v.filter(c=>c.status!=='Complete'&&effective(c)&&(()=>{const d=new Date(effective(c));return d.getFullYear()===currentMonth.getFullYear()&&d.getMonth()===currentMonth.getMonth()&&d.getDate()>=eomStart})()).length;const completed=v.filter(c=>c.status==='Complete'&&inCurrentMonth(c.completedAt)).length;const start=new Date(days[0][0]+'T00:00:00'),end=new Date(days[5][0]+'T23:59:59');const items=[['Live ROs',v.filter(c=>c.status!=='Complete').length,'Current workload','live'],['This Week',v.filter(c=>workshopSlot(c)&&new Date(workshopSlot(c))>=start&&new Date(workshopSlot(c))<=end).length,'Workshop plan','thisweek'],['Unscheduled',v.filter(c=>!workshopSlot(c)&&c.status!=='Complete').length,'Needs allocation','unscheduled'],['EOM Load',dueEom,`Due ${eomStart}–${lastDay} ${monthName}`,'eom'],['Delivery Risk',v.filter(risk).length,'Manage by exception','risk'],['Complete',completed,currentMonth.toLocaleDateString('en-AU',{month:'long'}),'complete']];document.getElementById('stats').innerHTML=items.map(x=>`<div class="stat ${filter===x[3]?'active':''}" role="button" tabindex="0" data-stat-filter="${x[3]}" onclick="applyStatFilter('${x[3]}')"><div class="label">${x[0]}</div><div class="value">${x[1]}</div><div class="sub">${x[2]}</div></div>`).join('')}
-function applyStatFilter(next){filter=filter===next?'all':next;document.querySelectorAll('[data-filter]').forEach(x=>x.classList.toggle('active',filter===x.dataset.filter||(filter==='all'&&x.dataset.filter==='all')));if(filter==='eom')setView('month');else if(filter==='complete')setView('reports');else setView('week');render()}
+function applyStatFilter(next){
+ const wasSame=filter===next;
+ filter=wasSame?'all':next;
+ document.querySelectorAll('[data-filter]').forEach(x=>x.classList.toggle('active',filter===x.dataset.filter||(filter==='all'&&x.dataset.filter==='all')));
+ if(filter==='eom')setView('month');else if(filter==='complete')setView('reports');else setView('week');
+ render();
+ if(wasSame)closeKpiDrawer();else openKpiDrawer(next);
+}
 function setView(v){if(v==='settings'&&!canSettings()){toast('Settings access required',true);return}
+
+function statListItems(kind){
+ const base=cards.filter(matchesBase);
+ const nowStart=new Date(days[0][0]+'T00:00:00'),nowEnd=new Date(days[5][0]+'T23:59:59');
+ const lastDay=new Date(currentMonth.getFullYear(),currentMonth.getMonth()+1,0),eomStart=Math.max(1,lastDay.getDate()-6);
+ if(kind==='live')return base.filter(c=>c.status!=='Complete');
+ if(kind==='thisweek')return base.filter(c=>workshopSlot(c)&&new Date(workshopSlot(c))>=nowStart&&new Date(workshopSlot(c))<=nowEnd);
+ if(kind==='unscheduled')return base.filter(c=>!workshopSlot(c)&&c.status!=='Complete');
+ if(kind==='eom')return base.filter(c=>{if(c.status==='Complete'||!effective(c))return false;const d=new Date(effective(c));return d.getFullYear()===currentMonth.getFullYear()&&d.getMonth()===currentMonth.getMonth()&&d.getDate()>=eomStart});
+ if(kind==='risk')return base.filter(risk);
+ if(kind==='complete')return base.filter(c=>c.status==='Complete'&&inCurrentMonth(c.completedAt||effective(c)));
+ return base;
+}
+function statTitle(kind){
+ return ({live:'Live ROs',thisweek:'This Week',unscheduled:'Unscheduled',eom:'EOM Load',risk:'Delivery Risk',complete:'Complete'})[kind]||'Workload';
+}
+function openKpiDrawer(kind){
+ currentStatList=kind;
+ const items=statListItems(kind);
+ document.getElementById('kpiDrawerTitle').textContent=`${statTitle(kind)} · ${items.length}`;
+ document.getElementById('kpiDrawerSub').textContent='Click an RO for quick date/time controls';
+ document.getElementById('kpiList').innerHTML=items.length?items.map(c=>{
+  const st=trafficState(c),awaiting=customerRequestPending(c);
+  return `<div class="kpi-list-card" onclick="openQuickEditor('${c.id}')">
+   <div class="kpi-list-top"><div><div class="kpi-list-ro">RO ${esc(c.ro)} · ${esc(c.type)}</div><div class="kpi-list-customer">${esc(c.customer)}</div><div class="kpi-list-vehicle">${esc(c.vehicle)}</div></div><span class="traffic-chip ${c.status==='Complete'?'complete':st.key}">${c.status==='Complete'?'✅ COMPLETE':st.label}</span></div>
+   <div class="small" style="margin-top:4px">${esc(c.sales)} · ${esc(c.stock)}</div>
+   <div class="kpi-dates"><div class="kpi-datebox"><span>Customer</span><b>${fmt(effective(c))}</b></div><div class="kpi-datebox"><span>Workshop</span><b>${fmt(workshopSlot(c))}</b></div></div>
+   <div class="kpi-card-foot"><span class="small">${esc(c.tech)}</span>${awaiting?'<span class="awaiting-oracle">⏳ Awaiting Oracle</span>':''}</div>
+  </div>`;
+ }).join(''):'<div class="empty-state"><b>No ROs in this view</b>Nothing currently matches this workload tile.</div>';
+ document.getElementById('kpiDrawer').classList.add('open');
+}
+function closeKpiDrawer(){document.getElementById('kpiDrawer').classList.remove('open')}
+function canEditCustomerCommitment(){return ['sales','manager','admin'].includes(roleKey())}
+function openQuickEditor(id){
+ quickId=id;const c=cards.find(x=>x.id===id);if(!c)return;
+ document.getElementById('quickTitle').textContent=`RO ${c.ro} · ${c.customer}`;
+ document.getElementById('quickSub').textContent=`${c.vehicle} · ${c.sales}`;
+ document.getElementById('quickCustomerDate').value=localInput(effective(c));
+ document.getElementById('quickWorkshopDate').value=localInput(workshopSlot(c));
+ const customerAllowed=canEditCustomerCommitment(),workshopDirect=canDirectSchedule(),workshopRequest=roleKey()==='manager';
+ const customerInput=document.getElementById('quickCustomerDate'),customerBtn=document.getElementById('quickCustomerSave');
+ customerInput.disabled=!customerAllowed;customerInput.classList.toggle('quick-readonly',!customerAllowed);customerBtn.disabled=!customerAllowed;
+ document.getElementById('quickCustomerRule').textContent=roleKey()==='sales'
+   ?'Sales can move the customer delivery later only.'
+   :roleKey()==='workshop_control'
+   ?'Workshop Control can view customer timing but Sales/Management owns the customer commitment.'
+   :customerAllowed?'Manager/Admin can move the customer delivery earlier or later.':'View only.';
+ const workshopInput=document.getElementById('quickWorkshopDate'),workshopBtn=document.getElementById('quickWorkshopSave');
+ workshopInput.disabled=!(workshopDirect||workshopRequest);workshopInput.classList.toggle('quick-readonly',!(workshopDirect||workshopRequest));workshopBtn.disabled=!(workshopDirect||workshopRequest);
+ workshopBtn.textContent=workshopDirect?'Update workshop plan':workshopRequest?'Request workshop change':'Workshop view only';
+ document.getElementById('quickWorkshopRule').textContent=workshopDirect?'Direct Workshop Control/Admin change.':workshopRequest?'Manager change requires Workshop Control approval.':'Sales cannot move Carlo’s Workshop Plan.';
+ document.getElementById('quickOracleWarning').style.display=customerRequestPending(c)?'block':'none';
+ document.getElementById('quickModal').classList.add('open');
+}
+function closeQuickEditor(){document.getElementById('quickModal').classList.remove('open');quickId=null}
+async function saveQuickCustomerDate(){
+ const c=cards.find(x=>x.id===quickId);if(!c||!canEditCustomerCommitment())return;
+ const raw=document.getElementById('quickCustomerDate').value;if(!raw){toast('Choose a customer delivery date/time',true);return}
+ const next=toIso(raw),current=effective(c);
+ if(roleKey()==='sales'&&current&&new Date(next)<=new Date(current)){toast('Sales can only move the customer delivery later.',true);return}
+ showLoading(true);
+ const {error}=await sb.rpc('request_customer_delivery_change',{p_job_id:c.id,p_requested_at:next});
+ if(error){showLoading(false);toast(error.message,true);return}
+ await loadData();showLoading(false);openQuickEditor(c.id);openKpiDrawer(currentStatList);toast('Customer time updated · awaiting Oracle');
+}
+async function saveQuickWorkshopDate(){
+ const c=cards.find(x=>x.id===quickId);if(!c)return;
+ const raw=document.getElementById('quickWorkshopDate').value;if(!raw){toast('Choose a workshop date/time',true);return}
+ const next=toIso(raw);
+ if(canDirectSchedule()){
+  showLoading(true);await updateJob(c.id,{pdi_scheduled_at:next},`PDI work slot moved to ${fmt(next)}`);showLoading(false);openQuickEditor(c.id);openKpiDrawer(currentStatList);return;
+ }
+ if(roleKey()==='manager'){
+  await requestScheduleChange(c.id,next);openQuickEditor(c.id);openKpiDrawer(currentStatList);return;
+ }
+ toast('You do not have permission to move the Workshop Plan',true);
+}
+function openFullFromQuick(){const id=quickId;closeQuickEditor();closeKpiDrawer();if(id)openDrawer(id)}
+async function reconcileCustomerRequests(){
+ const targets=cards.filter(c=>c.requestedCustomer&&!customerRequestPending(c));
+ for(const c of targets){try{await sb.rpc('clear_customer_delivery_request',{p_job_id:c.id})}catch{}}
+}
+
 async function callUserAdmin(payload){
  const {data,error}=await sb.functions.invoke('predelivery-user-admin',{body:payload});
  if(error){let msg=error.message;try{if(error.context){const t=await error.context.text();if(t){const j=JSON.parse(t);msg=j.error||j.detail||t}}}catch{}throw new Error(msg)}
@@ -587,7 +758,7 @@ function renderWeek(v){
    cross.innerHTML=prior.map(key=>{
      const d=new Date(key+'T12:00:00');
      const label=d.toLocaleDateString('en-AU',{weekday:'short',day:'numeric',month:'short'}).toUpperCase();
-     const planned=v.filter(c=>workshopSlot(c)&&dateKey(workshopSlot(c))===key);
+     const planned=v.filter(c=>workshopSlot(c)&&dateKeyLocal(new Date(workshopSlot(c)))===key);
      return `<div class="crossweek-day">
        <h4>${label} <span class="small">· ${planned.length} planned</span></h4>
        <div class="crossweek-slots">${slots.map(sl=>`<div class="crossweek-slot dropzone" data-date="${key}" data-time="${sl[0]}">${sl[1].replace(':00 ',' ')}</div>`).join('')}</div>
@@ -611,14 +782,14 @@ function visualCardHtml(c,kind='customer'){
  const primaryTime=isWorkflow?workshopSlot(c):effective(c);
  const subTime=isWorkflow&&effective(c)?`Customer: ${fmt(effective(c))}`:(!isWorkflow&&workshopSlot(c)?`Workshop: ${fmt(workshopSlot(c))}`:'');
  const riskAlert=!isWorkflow&&!complete&&conflict?`<div class="reschedule-alert">🚨 Reschedule required<br>Workshop now ready ${fmt(workshopSlot(c))}</div>`:'';
- const readyAlert=!isWorkflow&&complete?`<div class="ready-badge">✅ READY FOR DELIVERY</div>`:'';
+ const readyAlert=!isWorkflow&&complete?`<div class="ready-badge">✅ READY FOR DELIVERY</div>`:''; const oraclePending=!isWorkflow&&customerRequestPending(c)?`<div class="awaiting-oracle">⏳ Awaiting Oracle</div>`:'';
  const workflowNote=isWorkflow&&effective(c)?`<div class="shadow-link">Customer commitment stays ${fmt(effective(c))}</div>`:'';
  const statusChip=complete?`<span class="traffic-chip complete">✅ COMPLETE</span>`:`<span class="traffic-chip ${state.key}">${state.label}</span>`;
  const completeMeta=isWorkflow&&complete?`<div class="small" style="margin-top:5px;color:#087453"><b>Completed:</b> ${fmt(c.completedAt)}</div>`:'';
  const actions=isWorkflow||isCombined
    ?`<div class="actions"><button onclick="event.stopPropagation();openDrawer('${c.id}')">Open</button><button class="block ${ctrl?'':'disabled-action'}" onclick="event.stopPropagation();openDelay('${c.id}')">${c.status==='Delayed'?'Edit Delay':'Delays'}</button>${complete?'':`<button class="done ${ctrl?'':'disabled-action'}" onclick="event.stopPropagation();completeJob('${c.id}',this)">⚡ COMPLETE</button>`}</div>`
    :`<div class="actions"><button onclick="event.stopPropagation();openDrawer('${c.id}')">Open</button>${!workshopSlot(c)&&canDirectSchedule()?'<button title="Drag this customer commitment into a workshop slot">Drag to plan PDI</button>':''}</div>`;
- return `<article class="card ${cls}" draggable="${canDrag}" data-id="${c.id}" data-kind="${kind}" ondblclick="openDrawer('${c.id}')"><div class="layer-label ${layerClass}">${layer}</div><div class="cardtop"><span class="ro">RO ${esc(c.ro)}</span><span class="pill ${c.type==='NEW'?'new':'used'}">${esc(c.type)}</span></div><div class="small">Deal ${esc(c.deal)}</div><div class="customer" title="${esc(c.customer)}">${esc(c.customer)}</div><div class="veh">${esc(c.vehicle)}</div><div class="small">${esc(c.stock)} · ${esc(c.location)}</div><span class="person">${esc(c.sales)}</span>${c.tech!=='Unassigned'?` <span class="person tech">🔧 ${esc(c.tech)}</span>`:''}<div>${statusChip}</div>${readyAlert}${pending?`<div class="pending-chip">⏳ Manager change requested · ${fmt(pending.requested_pdi_at)}</div>`:''}<div class="delivery"><div><span class="small">${isWorkflow?'Planned / revised workshop ready':c.booked?'Booked customer delivery':'Estimated customer delivery'}</span><strong>${fmt(primaryTime)}</strong>${subTime?`<div class="small">${subTime}</div>`:''}${flagged&&!conflict&&!complete?`<div class="exception-note"><span class="exception-flags">🚩🚩🚩</span> Inside ${buffer}-day turnaround</div>`:''}</div><span class="finance ${fc}">${esc(c.finance)}</span></div>${riskAlert}${workflowNote}${completeMeta}${c.status==='Delayed'&&c.proposedCompletion&&isWorkflow?`<div class="small" style="margin-top:6px;color:#a06508"><b>Delay:</b> ${esc(c.delayReason||'Reason recorded')}</div>`:''}${actions}</article>`
+ return `<article class="card ${cls}" draggable="${canDrag}" data-id="${c.id}" data-kind="${kind}" ondblclick="openDrawer('${c.id}')"><div class="layer-label ${layerClass}">${layer}</div><div class="cardtop"><span class="ro">RO ${esc(c.ro)}</span><span class="pill ${c.type==='NEW'?'new':'used'}">${esc(c.type)}</span></div><div class="small">Deal ${esc(c.deal)}</div><div class="customer" title="${esc(c.customer)}">${esc(c.customer)}</div><div class="veh">${esc(c.vehicle)}</div><div class="small">${esc(c.stock)} · ${esc(c.location)}</div><span class="person">${esc(c.sales)}</span>${c.tech!=='Unassigned'?` <span class="person tech">🔧 ${esc(c.tech)}</span>`:''}<div>${statusChip}</div>${readyAlert}${oraclePending}${pending?`<div class="pending-chip">⏳ Manager change requested · ${fmt(pending.requested_pdi_at)}</div>`:''}<div class="delivery"><div><span class="small">${isWorkflow?'Planned / revised workshop ready':c.booked?'Booked customer delivery':'Estimated customer delivery'}</span><strong>${fmt(primaryTime)}</strong>${subTime?`<div class="small">${subTime}</div>`:''}${flagged&&!conflict&&!complete?`<div class="exception-note"><span class="exception-flags">🚩🚩🚩</span> Inside ${buffer}-day turnaround</div>`:''}</div><span class="finance ${fc}">${esc(c.finance)}</span></div>${riskAlert}${workflowNote}${completeMeta}${c.status==='Delayed'&&c.proposedCompletion&&isWorkflow?`<div class="small" style="margin-top:6px;color:#a06508"><b>Delay:</b> ${esc(c.delayReason||'Reason recorded')}</div>`:''}${actions}</article>`
 }
 function cardHtml(c){return visualCardHtml(c,'workflow')}
 async function requestScheduleChange(id,next){
@@ -713,6 +884,90 @@ function openDelay(id){if(!canControl())return;delayId=id;const c=cards.find(x=>
 function closeDelay(){document.getElementById('delayModal').classList.remove('open');delayId=null}
 async function saveDelay(){const c=cards.find(x=>x.id===delayId);const reason=document.getElementById('delayReason').value.trim(),proposed=document.getElementById('delayProposed').value;if(!reason||!proposed){alert('Please add both a delay reason and a new proposed completion date/time.');return}showLoading(true);const ok=await updateJob(c.id,{status:'delayed',delay_reason:reason,proposed_completion_at:toIso(proposed)},`Delay: ${reason} · Proposed completion ${fmt(proposed)}`);closeDelay();showLoading(false);if(ok)toast('Delay recorded')}
 
+
+
+function statListItems(kind){
+ const base=cards.filter(matchesBase);
+ const nowStart=new Date(days[0][0]+'T00:00:00'),nowEnd=new Date(days[5][0]+'T23:59:59');
+ const lastDay=new Date(currentMonth.getFullYear(),currentMonth.getMonth()+1,0),eomStart=Math.max(1,lastDay.getDate()-6);
+ if(kind==='live')return base.filter(c=>c.status!=='Complete');
+ if(kind==='thisweek')return base.filter(c=>workshopSlot(c)&&new Date(workshopSlot(c))>=nowStart&&new Date(workshopSlot(c))<=nowEnd);
+ if(kind==='unscheduled')return base.filter(c=>!workshopSlot(c)&&c.status!=='Complete');
+ if(kind==='eom')return base.filter(c=>{if(c.status==='Complete'||!effective(c))return false;const d=new Date(effective(c));return d.getFullYear()===currentMonth.getFullYear()&&d.getMonth()===currentMonth.getMonth()&&d.getDate()>=eomStart});
+ if(kind==='risk')return base.filter(risk);
+ if(kind==='complete')return base.filter(c=>c.status==='Complete'&&inCurrentMonth(c.completedAt||effective(c)));
+ return base;
+}
+function statTitle(kind){
+ return ({live:'Live ROs',thisweek:'This Week',unscheduled:'Unscheduled',eom:'EOM Load',risk:'Delivery Risk',complete:'Complete'})[kind]||'Workload';
+}
+function openKpiDrawer(kind){
+ currentStatList=kind;
+ const items=statListItems(kind);
+ document.getElementById('kpiDrawerTitle').textContent=`${statTitle(kind)} · ${items.length}`;
+ document.getElementById('kpiDrawerSub').textContent='Click an RO for quick date/time controls';
+ document.getElementById('kpiList').innerHTML=items.length?items.map(c=>{
+  const st=trafficState(c),awaiting=customerRequestPending(c);
+  return `<div class="kpi-list-card" onclick="openQuickEditor('${c.id}')">
+   <div class="kpi-list-top"><div><div class="kpi-list-ro">RO ${esc(c.ro)} · ${esc(c.type)}</div><div class="kpi-list-customer">${esc(c.customer)}</div><div class="kpi-list-vehicle">${esc(c.vehicle)}</div></div><span class="traffic-chip ${c.status==='Complete'?'complete':st.key}">${c.status==='Complete'?'✅ COMPLETE':st.label}</span></div>
+   <div class="small" style="margin-top:4px">${esc(c.sales)} · ${esc(c.stock)}</div>
+   <div class="kpi-dates"><div class="kpi-datebox"><span>Customer</span><b>${fmt(effective(c))}</b></div><div class="kpi-datebox"><span>Workshop</span><b>${fmt(workshopSlot(c))}</b></div></div>
+   <div class="kpi-card-foot"><span class="small">${esc(c.tech)}</span>${awaiting?'<span class="awaiting-oracle">⏳ Awaiting Oracle</span>':''}</div>
+  </div>`;
+ }).join(''):'<div class="empty-state"><b>No ROs in this view</b>Nothing currently matches this workload tile.</div>';
+ document.getElementById('kpiDrawer').classList.add('open');
+}
+function closeKpiDrawer(){document.getElementById('kpiDrawer').classList.remove('open')}
+function canEditCustomerCommitment(){return ['sales','manager','admin'].includes(roleKey())}
+function openQuickEditor(id){
+ quickId=id;const c=cards.find(x=>x.id===id);if(!c)return;
+ document.getElementById('quickTitle').textContent=`RO ${c.ro} · ${c.customer}`;
+ document.getElementById('quickSub').textContent=`${c.vehicle} · ${c.sales}`;
+ document.getElementById('quickCustomerDate').value=localInput(effective(c));
+ document.getElementById('quickWorkshopDate').value=localInput(workshopSlot(c));
+ const customerAllowed=canEditCustomerCommitment(),workshopDirect=canDirectSchedule(),workshopRequest=roleKey()==='manager';
+ const customerInput=document.getElementById('quickCustomerDate'),customerBtn=document.getElementById('quickCustomerSave');
+ customerInput.disabled=!customerAllowed;customerInput.classList.toggle('quick-readonly',!customerAllowed);customerBtn.disabled=!customerAllowed;
+ document.getElementById('quickCustomerRule').textContent=roleKey()==='sales'
+   ?'Sales can move the customer delivery later only.'
+   :roleKey()==='workshop_control'
+   ?'Workshop Control can view customer timing but Sales/Management owns the customer commitment.'
+   :customerAllowed?'Manager/Admin can move the customer delivery earlier or later.':'View only.';
+ const workshopInput=document.getElementById('quickWorkshopDate'),workshopBtn=document.getElementById('quickWorkshopSave');
+ workshopInput.disabled=!(workshopDirect||workshopRequest);workshopInput.classList.toggle('quick-readonly',!(workshopDirect||workshopRequest));workshopBtn.disabled=!(workshopDirect||workshopRequest);
+ workshopBtn.textContent=workshopDirect?'Update workshop plan':workshopRequest?'Request workshop change':'Workshop view only';
+ document.getElementById('quickWorkshopRule').textContent=workshopDirect?'Direct Workshop Control/Admin change.':workshopRequest?'Manager change requires Workshop Control approval.':'Sales cannot move Carlo’s Workshop Plan.';
+ document.getElementById('quickOracleWarning').style.display=customerRequestPending(c)?'block':'none';
+ document.getElementById('quickModal').classList.add('open');
+}
+function closeQuickEditor(){document.getElementById('quickModal').classList.remove('open');quickId=null}
+async function saveQuickCustomerDate(){
+ const c=cards.find(x=>x.id===quickId);if(!c||!canEditCustomerCommitment())return;
+ const raw=document.getElementById('quickCustomerDate').value;if(!raw){toast('Choose a customer delivery date/time',true);return}
+ const next=toIso(raw),current=effective(c);
+ if(roleKey()==='sales'&&current&&new Date(next)<=new Date(current)){toast('Sales can only move the customer delivery later.',true);return}
+ showLoading(true);
+ const {error}=await sb.rpc('request_customer_delivery_change',{p_job_id:c.id,p_requested_at:next});
+ if(error){showLoading(false);toast(error.message,true);return}
+ await loadData();showLoading(false);openQuickEditor(c.id);openKpiDrawer(currentStatList);toast('Customer time updated · awaiting Oracle');
+}
+async function saveQuickWorkshopDate(){
+ const c=cards.find(x=>x.id===quickId);if(!c)return;
+ const raw=document.getElementById('quickWorkshopDate').value;if(!raw){toast('Choose a workshop date/time',true);return}
+ const next=toIso(raw);
+ if(canDirectSchedule()){
+  showLoading(true);await updateJob(c.id,{pdi_scheduled_at:next},`PDI work slot moved to ${fmt(next)}`);showLoading(false);openQuickEditor(c.id);openKpiDrawer(currentStatList);return;
+ }
+ if(roleKey()==='manager'){
+  await requestScheduleChange(c.id,next);openQuickEditor(c.id);openKpiDrawer(currentStatList);return;
+ }
+ toast('You do not have permission to move the Workshop Plan',true);
+}
+function openFullFromQuick(){const id=quickId;closeQuickEditor();closeKpiDrawer();if(id)openDrawer(id)}
+async function reconcileCustomerRequests(){
+ const targets=cards.filter(c=>c.requestedCustomer&&!customerRequestPending(c));
+ for(const c of targets){try{await sb.rpc('clear_customer_delivery_request',{p_job_id:c.id})}catch{}}
+}
 
 async function callUserAdmin(payload){
  const {data,error}=await sb.functions.invoke('predelivery-user-admin',{body:payload});
